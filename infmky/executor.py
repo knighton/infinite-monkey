@@ -1,13 +1,13 @@
 from torch import nn
 
-from .layer import Conv1dBlock, Skip
+from .layer import Conv1dBlock, Flatten, Reshape, Skip
 
 
 class Executor(nn.Sequential):
     def __init__(self, in_channels, in_width, out_channels, out_width):
         blocks = []
         c = 128
-        mid_width = 2
+        mid_width = 4
 
         head = nn.Sequential(
             nn.Conv1d(in_channels, c, 3, 1, 1),
@@ -30,10 +30,12 @@ class Executor(nn.Sequential):
 
         for i in range(4):
             block = nn.Sequential(
-                Conv1dBlock(c, c),
-                Skip(Conv1dBlock(c, c)),
-                Conv1dBlock(c, c),
-                Skip(Conv1dBlock(c, c)),
+                Flatten(),
+                nn.ReLU(),
+                nn.Dropout(),
+                nn.Linear(c * mid_width, c * mid_width),
+                nn.BatchNorm1d(c * mid_width),
+                Reshape(c, mid_width),
             )
             blocks.append(block)
 
