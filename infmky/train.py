@@ -265,6 +265,7 @@ def main(flags):
         for batch in tqdm(list(range(flags.batches_per_epoch)), leave=False):
             g_optimizer.zero_grad()
 
+            # Generate code.
             z = torch.randn(flags.batch_size, flags.z_dim, device=device)
             max_width = min(flags.g_width, 1 + int((epoch / 2) ** 0.5))
             widths = pick_widths(flags.batch_size, max_width)
@@ -272,26 +273,29 @@ def main(flags):
             code = generator(z, should_be_whitespace)
             softmax_code = F.softmax(code, 1)
 
+            # Learn to match requested sequence lengths (gradual ramping up).
             got_whitespace = softmax_code[:, 0, :]
             a = got_whitespace * should_be_whitespace
             b = (1 - got_whitespace) * (1 - should_be_whitespace)
             gen_chr_losses.append(a.mean().item())
             gen_nul_losses.append(b.mean().item())
-
             loss = -(a + b).abs().mean()
             loss.backward(retain_graph=True)
 
+            # Diversity bonus/penalty.
             c = softmax_code.mean(2).std(1) * 0.25
             gen_std_losses.append(c.mean().item())
             loss = c.mean()
             loss.backward(retain_graph=True)
 
+            # Execute the code (training generator).
             pred_output = executor(code)
             x = pred_output.max(1)[1]
             pred_out_text = e_dict.tensor_to_texts(x)
             true_output, in_text, true_out_text, oks = python(code)
             oks = torch.tensor(list(map(float, oks)), device=device)
 
+            # Get losses.
             exe_loss = 1 - F.cross_entropy(pred_output, true_output)
             ok_loss = oks.mean()
             loss = exe_loss
@@ -303,11 +307,12 @@ def main(flags):
 
             e_optimizer.zero_grad()
 
+            # Execute code (training executor).
             pred_output = executor(code.detach())
             x = pred_output.max(1)[1]
             pred_out_text = e_dict.tensor_to_texts(x)
-            true_output, in_text, true_out_text, oks = python(code)
 
+            # Get loss.
             loss = F.cross_entropy(pred_output, true_output)
             loss.backward()
 
