@@ -295,7 +295,7 @@ def main(flags):
             true_output, in_text, true_out_text, oks = python(code)
             oks = torch.tensor(list(map(float, oks)), device=device)
 
-            # Get losses.
+            # Maximize executor error.
             exe_loss = 1 - F.cross_entropy(pred_output, true_output)
             ok_loss = oks.mean()
             loss = exe_loss
@@ -312,7 +312,7 @@ def main(flags):
             x = pred_output.max(1)[1]
             pred_out_text = e_dict.tensor_to_texts(x)
 
-            # Get loss.
+            # Minimize executor error.
             loss = F.cross_entropy(pred_output, true_output)
             loss.backward()
 
